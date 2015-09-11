@@ -11,9 +11,25 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_DATA 64
 #define MAX_TASKS 20
+
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_CYAN_BOLD	   "\033[1;36m"
+
+#define ANSI_FONT_BOLD	   "\x1b[1m"
+#define ANSI_BACKGROUND_CYAN "\033[7;36m"
+
+#define ENDHASH ANSI_BACKGROUND_CYAN " " ANSI_COLOR_RESET
+#define ENDPIPE ANSI_BACKGROUND_CYAN " " ANSI_COLOR_RESET
 
 struct Entry {
 	int id;
@@ -44,7 +60,7 @@ void die(const char *message)
 
 void Entry_print(struct Entry *entry)
 {
-	printf("%2d : %64s\n", entry->id, entry->task);
+	printf(ENDPIPE "%2d : %64s " ENDPIPE "\n", entry->id, entry->task);
 }
 
 void List_load(struct Connection *conn)
@@ -183,6 +199,65 @@ void List_get(struct Connection *conn, int id)
 		die("No task with given ID");
 }
 
+void Todol_header()
+{
+	//
+	//	Todol_header creates one of several header lines randomly for Todol,
+	//
+
+	//For MAXDATA = 64, header and footer length must be 71 + # + \n
+	//r is a random number between 0 and 9
+	srand(time(NULL));
+	int r = rand() % 10;
+	printf("\n"ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
+	switch(r)
+	{
+		case 0: // "# todol: You got this!" length: 22
+			printf(ENDHASH ANSI_CYAN_BOLD " todol: You got this!" ANSI_COLOR_RESET "%49s" ENDHASH "\n","");
+			break;
+		case 1: // "# todol: I believe in you!" length:26
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: I believe in you!" ANSI_COLOR_RESET "%45s" ENDHASH "\n","");
+			break;
+		case 2: // "# todol: Just do it! -Shia LaBeouf" length:34
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Just do it! -Shia LaBeouf" ANSI_COLOR_RESET "%37s" ENDHASH "\n","");
+			break;
+		case 3: // "# todol: Make it a todone-l" length:27
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Make it a todone-l" ANSI_COLOR_RESET "%44s" ENDHASH "\n","");
+			break; 
+		case 4: // "# todol: You're awesome." length:24
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: You're awesome." ANSI_COLOR_RESET "%47s" ENDHASH "\n","");
+			break; 
+		case 5: // "# todol: You make it look easy." length:31
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: You make it look easy." ANSI_COLOR_RESET "%40s" ENDHASH "\n","");
+			break; 
+		case 6: // "# todol: You're on fire today!" length:30
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: You're on fire today!" ANSI_COLOR_RESET "%41s" ENDHASH "\n","");
+			break; 
+		case 7: // "# todol: Don't give up!" length:23
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Don't give up!" ANSI_COLOR_RESET "%48s" ENDHASH "\n","");
+			break; 
+		case 8: // "# todol: Take it one step at a time." length:36
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Take it one step at a time." ANSI_COLOR_RESET "%35s" ENDHASH "\n","");
+			break; 
+		case 9: // "# todol: Show this list who's boss!" length:35
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Show this list who's boss!" ANSI_COLOR_RESET "%36s" ENDHASH "\n","");
+			break; 
+		default: // "# todol: Nothing is impossible!" length:31
+			printf(ENDHASH ANSI_CYAN_BOLD" todol: Nothing is impossible!" ANSI_COLOR_RESET "%40s" ENDHASH "\n",""); 
+			//Ironically, should be impossible to see this.
+			break;
+	}
+	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
+	printf(ENDHASH "%70s" ENDHASH "\n","");
+
+}
+
+void Todol_footer()
+{
+	printf(ENDHASH "%70s" ENDHASH "\n","");
+	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
+}
+
 int main(int argc, char *argv[])
 {
 	if(argc < 3)
@@ -192,7 +267,7 @@ int main(int argc, char *argv[])
 	char action = argv[2][0];
 
 	struct Connection *conn = List_open(filename, action);
-
+	int i;
 	switch(action){
 		case 'c':
 			List_create(conn);
@@ -201,8 +276,13 @@ int main(int argc, char *argv[])
 		case 'a':
 			printf("Enter new task: \n");
 			char instr[MAX_DATA];
-			fgets(instr, MAX_DATA, stdin);
-			//instr[MAX_DATA - 1] = '\0';
+			fgets(instr, MAX_DATA-1, stdin);
+
+			//Scrubs input of newline character
+			char *pos;
+			if((pos = strchr(instr, '\n')) != NULL)
+				*pos = '\0';
+			instr[MAX_DATA - 1] = '\0';
 			printf("New ID: %d\n", List_add(conn, instr));
 			List_write(conn);
 			break;
@@ -213,16 +293,26 @@ int main(int argc, char *argv[])
 			List_write(conn);
 			break;
 		case 'l':
-			printf("#%67s#\n","");
+			Todol_header();
 			List_list(conn);
-			printf("#%67s#\n","");
+			Todol_footer();
 			break;
 		case 'g':
 			if(argc < 4)
 				die("Need an ID to get");
 			List_get(conn, atoi(argv[3]));
+		case 'p':
+			for(i = MAX_TASKS -1; i>=0; i--)
+				if(conn->ls->tasks[i].set)
+				{
+					printf("Removing ID: %d\n", i); 
+					List_remove(conn, i);
+					List_write(conn);
+					break;
+				}
+			break;
 		default:
-			die("Invalid action, only: c=create, a=add, r=remove, l=list, g=get");
+			die("Invalid action, only: c=create, a=add, r=remove, l=list, g=get, p=pop");
 	}
 
 	List_close(conn);
