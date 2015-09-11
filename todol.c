@@ -254,8 +254,14 @@ void Todol_header()
 
 void Todol_footer()
 {
+	char* footertext = "c=create, a=add, r=remove, l=list, g=get, p=pop";
 	printf(ENDHASH "%70s" ENDHASH "\n","");
-	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
+	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n",footertext);
+}
+
+void Todol_emptylist()
+{
+	printf(ENDPIPE ANSI_CYAN_BOLD "%23sYou finished everything!%23s" ANSI_COLOR_RESET ENDPIPE "\n","","");
 }
 
 int main(int argc, char *argv[])
@@ -294,7 +300,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'l':
 			Todol_header();
-			List_list(conn);
+			if(!conn->ls->tasks[0].set)
+				Todol_emptylist();
+			else
+				List_list(conn);
 			Todol_footer();
 			break;
 		case 'g':
