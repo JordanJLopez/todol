@@ -13,7 +13,9 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_DATA 64
+#include <sys/ioctl.h>
+
+#define MAX_DATA 256
 #define MAX_TASKS 20
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -61,6 +63,11 @@ void die(const char *message)
 void Entry_print(struct Entry *entry)
 {
 	printf(ENDPIPE "%2d : %64s " ENDPIPE "\n", entry->id, entry->task);
+}
+
+void Entry_printf(struct Entry *entry)
+{
+	printf(ANSI_FONT_BOLD "%2d:\n" ANSI_COLOR_RESET "%s\n", entry->id, entry->task);
 }
 
 void List_load(struct Connection *conn)
@@ -199,7 +206,7 @@ void List_get(struct Connection *conn, int id)
 		die("No task with given ID");
 }
 
-void Todol_header()
+void Todol_header(int columns)
 {
 	//
 	//	Todol_header creates one of several header lines randomly for Todol,
@@ -207,61 +214,113 @@ void Todol_header()
 
 	//For MAXDATA = 64, header and footer length must be 71 + # + \n
 	//r is a random number between 0 and 9
-	srand(time(NULL));
-	int r = rand() % 10;
-	printf("\n"ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
-	switch(r)
+
+	char filler[columns];
+	if(columns < 38)
 	{
-		case 0: // "# todol: You got this!" length: 22
-			printf(ENDHASH ANSI_CYAN_BOLD " todol: You got this!" ANSI_COLOR_RESET "%49s" ENDHASH "\n","");
-			break;
-		case 1: // "# todol: I believe in you!" length:26
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: I believe in you!" ANSI_COLOR_RESET "%45s" ENDHASH "\n","");
-			break;
-		case 2: // "# todol: Just do it! -Shia LaBeouf" length:34
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Just do it! -Shia LaBeouf" ANSI_COLOR_RESET "%37s" ENDHASH "\n","");
-			break;
-		case 3: // "# todol: Make it a todone-l" length:27
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Make it a todone-l" ANSI_COLOR_RESET "%44s" ENDHASH "\n","");
-			break; 
-		case 4: // "# todol: You're awesome." length:24
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: You're awesome." ANSI_COLOR_RESET "%47s" ENDHASH "\n","");
-			break; 
-		case 5: // "# todol: You make it look easy." length:31
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: You make it look easy." ANSI_COLOR_RESET "%40s" ENDHASH "\n","");
-			break; 
-		case 6: // "# todol: You're on fire today!" length:30
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: You're on fire today!" ANSI_COLOR_RESET "%41s" ENDHASH "\n","");
-			break; 
-		case 7: // "# todol: Don't give up!" length:23
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Don't give up!" ANSI_COLOR_RESET "%48s" ENDHASH "\n","");
-			break; 
-		case 8: // "# todol: Take it one step at a time." length:36
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Take it one step at a time." ANSI_COLOR_RESET "%35s" ENDHASH "\n","");
-			break; 
-		case 9: // "# todol: Show this list who's boss!" length:35
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Show this list who's boss!" ANSI_COLOR_RESET "%36s" ENDHASH "\n","");
-			break; 
-		default: // "# todol: Nothing is impossible!" length:31
-			printf(ENDHASH ANSI_CYAN_BOLD" todol: Nothing is impossible!" ANSI_COLOR_RESET "%40s" ENDHASH "\n",""); 
-			//Ironically, should be impossible to see this.
-			break;
+		printf(ANSI_BACKGROUND_CYAN "%s" ANSI_COLOR_RESET "\n",filler);
 	}
-	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n","");
-	printf(ENDHASH "%70s" ENDHASH "\n","");
+	else
+	{
+		srand(time(NULL));
+		int r = rand() % 10;
+		printf("\n"ANSI_BACKGROUND_CYAN "%s" ANSI_COLOR_RESET "\n",filler);
+		switch(r)
+		{
+			case 0: // "# todol: You got this!" + " #" length: 24
+				char leftJustify[columns - 24] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD " todol: You got this!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break;
+			case 1: // "# todol: I believe in you!" + " #" length:28
+				char leftJustify[columns - 28] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: I believe in you!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break;
+			case 2: // "# todol: Just do it! -Shia LaBeouf" + " #" length:36
+				char leftJustify[columns - 36] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Just do it! -Shia LaBeouf" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break;
+			case 3: // "# todol: Make it a todone-l" + " #" length:29
+				char leftJustify[columns - 29] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Make it a todone-l" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 4: // "# todol: You're awesome." + " #" length:26
+				char leftJustify[columns - 26] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: You're awesome." ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 5: // "# todol: You make it look easy." + " #" length:33
+				char leftJustify[columns - 33] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: You make it look easy." ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 6: // "# todol: You're on fire today!" + " #" length:32
+				char leftJustify[columns - 32] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: You're on fire today!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 7: // "# todol: Don't give up!" + " #" length:25
+				char leftJustify[columns - 25] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Don't give up!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 8: // "# todol: Take it one step at a time." + " #" length:38
+				char leftJustify[columns - 38] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Take it one step at a time." ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			case 9: // "# todol: Show this list who's boss!" + " #" length:37
+				char leftJustify[columns - 37] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Show this list who's boss!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify);
+				break; 
+			default: // "# todol: Nothing is impossible!" + " #" length:33
+				char leftJustify[columns - 33] = "";
+				printf(ENDHASH ANSI_CYAN_BOLD" todol: Nothing is impossible!" ANSI_COLOR_RESET "%s" ENDHASH "\n",leftJustify); 
+				//Ironically, should be impossible to see this.
+				break;
+		}
+	}
+	
+	printf(ANSI_BACKGROUND_CYAN "%s" ANSI_COLOR_RESET "\n",filler);
 
 }
 
-void Todol_footer()
+void Todol_footer(int columns)
 {
-	char* footertext = "c=create, a=add, r=remove, l=list, g=get, p=pop";
-	printf(ENDHASH "%70s" ENDHASH "\n","");
-	printf(ENDHASH ANSI_BACKGROUND_CYAN "%70s" ENDHASH "\n",footertext);
+	if(columns > 48)
+	{
+		char rightJustify[columns - 48];
+		char* footertext = "c=create, a=add, r=remove, l=list, g=get, p=pop";
+		printf(ANSI_BACKGROUND_CYAN "%s%s" ANSI_COLOR_RESET "\n",rightJustify,footertext);
+
+	}
+	else
+	{
+		char filler[columns];
+		printf(ANSI_BACKGROUND_CYAN "%s" ANSI_COLOR_RESET "\n", filler);
+	}
 }
 
 void Todol_emptylist()
 {
 	printf(ENDPIPE ANSI_CYAN_BOLD "%23sYou finished everything!%23s" ANSI_COLOR_RESET ENDPIPE "\n","","");
+}
+
+void List_listf(struct Connection *conn)
+{
+	struct winsize sz;
+	if(!ioctl(0, TIOCGWINSZ, &sz))
+	{
+		printf("Screen width: %i Screen height: %i\n",sz.ws_col,sz.ws_row);
+		Todol_header(sz.ws_col);
+		int i = 0;
+		for(i = 0; i < MAX_TASKS; i++)
+		{
+			if(conn->ls->tasks[i].set)
+				Entry_printf(&conn->ls->tasks[i]);
+		}
+		Todol_footer(sz.ws_col);
+	}
+	else
+	{
+		Todol_header(72)
+		List_list(conn);
+		Todol_footer(72);
+	}
 }
 
 int main(int argc, char *argv[])
@@ -299,6 +358,7 @@ int main(int argc, char *argv[])
 			List_write(conn);
 			break;
 		case 'l':
+			List_listf(conn);
 			Todol_header();
 			if(!conn->ls->tasks[0].set)
 				Todol_emptylist();
