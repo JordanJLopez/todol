@@ -266,13 +266,13 @@ void Todol_emptylist()
 
 int main(int argc, char *argv[])
 {
-	if(argc < 3)
-		die("USAGE: todol <listfile> <action> [action parameters]");
+	if(argc < 2)
+		die("USAGE: todol <action> [action parameters]");
 
-	char* filename = argv[1];
-	char action = argv[2][0];
+	//char* filename = argv[1];
+	char action = argv[1][0];
 
-	struct Connection *conn = List_open(filename, action);
+	struct Connection *conn = List_open("todol.txt", action);
 	int i;
 	switch(action){
 		case 'c':
