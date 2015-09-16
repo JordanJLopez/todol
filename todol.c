@@ -36,6 +36,7 @@
 struct Entry {
 	int id;
 	int set;
+	int crossed;
 	char task[MAX_DATA];
 };
 
@@ -48,44 +49,58 @@ struct Connection {
 	struct List *ls;
 };
 
-void die(const char *message)
-{
-	if(errno) {
-		perror(message);
-	} else {
-		printf("ERROR: %s\n", message);
-	}
+void die(const char *message, struct Connection *conn);
+
+// void die(const char *message)
+// {
+// 	if(errno) {
+// 		perror(message);
+// 	} else {
+// 		printf("ERROR: %s\n", message);
+// 	}
 
 
-	exit(1);
-}
+// 	exit(1);
+// }
+
 
 void Entry_print(struct Entry *entry)
 {
 	printf(ENDPIPE "%2d : %64s " ENDPIPE "\n", entry->id, entry->task);
 }
 
+//print x indicates that the task has been done, will be colored red
+void Entry_printx(struct Entry *entry)
+{
+	printf(ANSI_COLOR_RED ANSI_FONT_BOLD " %2d:\t" ANSI_COLOR_RESET ANSI_COLOR_RED "%s\n" ANSI_COLOR_RESET, entry->id, entry->task);
+}
+
 void Entry_printf(struct Entry *entry)
 {
-	printf(ANSI_FONT_BOLD " %2d:\t" ANSI_COLOR_RESET "%s\n", entry->id, entry->task);
+	if(entry->crossed)
+		Entry_printx(entry);
+	else
+		printf(ANSI_FONT_BOLD " %2d:\t" ANSI_COLOR_RESET "%s\n", entry->id, entry->task);
 }
+
+
 
 void List_load(struct Connection *conn)
 {
 	int rc = fread(conn->ls, sizeof(struct List), 1, conn->file);
 	if(rc != 1)
-		die("Failed to load list.");
+		die("Failed to load list.", conn);
 }
 
 struct Connection *List_open(const char *filename, char mode)
 {
 	struct Connection *conn = malloc(sizeof(struct Connection));
 	if(!conn)
-		die("Memory error");
+		die("Memory error", conn);
 
 	conn->ls = malloc(sizeof(struct List));
 	if(!conn->ls)
-		die("Memory error");
+		die("Memory error", conn);
 
 	if(mode == 'c') {
 		conn->file = fopen(filename, "w");
@@ -98,7 +113,7 @@ struct Connection *List_open(const char *filename, char mode)
 	}
 
 	if(!conn->file)
-		die("Failed to open the file");
+		die("Failed to open the file",conn);
 
 	return conn;
 }
@@ -120,11 +135,11 @@ void List_write(struct Connection *conn)
 
 	int rc = fwrite(conn->ls, sizeof(struct List), 1, conn->file);
 	if(rc != 1)
-		die("Failed to write list.");
+		die("Failed to write list.", conn);
 
 	rc = fflush(conn->file);
 	if(rc == -1)
-		die("Cannot flush database.");
+		die("Cannot flush database.", conn);
 }
 
 void List_create(struct Connection *conn)
@@ -133,7 +148,7 @@ void List_create(struct Connection *conn)
 
 	for(i = 0; i < MAX_TASKS; i++)
 	{
-		struct Entry entry = {.id=i, .set=0};
+		struct Entry entry = {.id=i, .crossed = 0, .set=0};
 		conn->ls->tasks[i] = entry;
 	}
 }
@@ -149,7 +164,7 @@ int List_add(struct Connection *conn, char* task)
 			return i;
 		}
 
-	die("List full: please remove an entry");
+	die("List full: please remove an entry", conn);
 	return -1;
 }
 
@@ -158,14 +173,13 @@ int List_remove(struct Connection *conn, int id)
 {
 	//Checks if ID is within valid range
 	if(id < 0 || id >= MAX_TASKS)
-		die("ID out of range");
+		die("ID out of range", conn);
 
 	//Checks if ID is already empty
 	if(!conn->ls->tasks[id].set)
 		return 0;
 
-	struct Entry empty = {.id = id, .set = 0};
-
+	struct Entry empty = {.id = id, .crossed = 0, .set = 0};
 
 	//Checks if ID is the greatest possible ID
 	if(id == MAX_TASKS -1)
@@ -182,8 +196,24 @@ int List_remove(struct Connection *conn, int id)
 	}
 
 	//Else, move data from ID + 1 to ID, then call to remove ID + 1;
+
 	conn->ls->tasks[id] = conn->ls->tasks[id+1];
 	return List_remove(conn, id+1);
+}
+
+int List_crossout(struct Connection *conn, int id)
+{
+	if(id < 0 || id >= MAX_TASKS)
+		die("ID out of range", conn);
+	if(!conn->ls->tasks[id].set)
+		return 0;
+
+	if(conn->ls->tasks[id].crossed)
+		conn->ls->tasks[id].crossed = 0;
+	else
+		conn->ls->tasks[id].crossed = 1;
+
+	return 1;
 }
 
 void List_list(struct Connection *conn)
@@ -199,11 +229,11 @@ void List_list(struct Connection *conn)
 void List_get(struct Connection *conn, int id)
 {
 	if(id<0 || id>=MAX_TASKS)
-		die("ID out of range");
+		die("ID out of range", conn);
 	if(conn->ls->tasks[id].set)
 		Entry_print(&conn->ls->tasks[id]);
 	else
-		die("No task with given ID");
+		die("No task with given ID", conn);
 }
 
 void Todol_header(int columns)
@@ -268,10 +298,10 @@ void Todol_header(int columns)
 
 void Todol_footer(int columns)
 {
-	if(columns > 48)
+	if(columns > 10)
 	{
-		char* footertext = "c=create, a=add, r=remove, l=list, g=get, p=pop";
-		printf(ANSI_BACKGROUND_CYAN "%*s%s " ANSI_COLOR_RESET "\n",columns - 48,"",footertext);
+		char* footertext = "h=help  ";
+		printf(ANSI_BACKGROUND_CYAN "%*s%s" ANSI_COLOR_RESET "\n",columns - 8,"",footertext);
 
 	}
 	else
@@ -325,18 +355,54 @@ void List_listf(struct Connection *conn)
 	}
 }
 
+int List_clearcross(struct Connection *conn)
+{
+	int i = 0;
+	for(i = MAX_TASKS - 1; i >= 0; i--)
+	{
+		if(!conn->ls->tasks[i].set)
+			return 0;
+		if(conn->ls->tasks[i].crossed == 1)
+			List_remove(conn, i);
+	}
+	return 1;
+}
+
+void die(const char *message, struct Connection *conn)
+{
+	if(errno) {
+		perror(message);
+	} else {
+		printf("ERROR: %s\n", message);
+	}
+
+	List_close(conn);
+	exit(1);
+}
+
+void dieSimple(const char *message)
+{
+	if(errno) {
+		perror(message);
+	} else {
+		printf("ERROR: %s\n", message);
+	}
+	exit(1);
+}
+
 int main(int argc, char *argv[])
 {
 	if(argc < 2)
-		die("USAGE: todol <action> [action parameters]");
+		dieSimple("USAGE: todol <action> [action parameters]");
 
 	//char* filename = argv[1];
 	char action = argv[1][0];
 
 	struct Connection *conn = List_open("todol.txt", action);
+
 	int i;
 	switch(action){
-		case 'c':
+		case 'n':
 			List_create(conn);
 			List_write(conn);
 			break;
@@ -353,19 +419,25 @@ int main(int argc, char *argv[])
 			printf("New ID: %d\n", List_add(conn, instr));
 			List_write(conn);
 			break;
+		case 'x':
+			if(argc < 3)
+				die("Need an ID to crossout", conn);
+			List_crossout(conn, atoi(argv[2]));
+			List_write(conn);
+			break;
 		case 'r':
-			if(argc < 4)
-				die("Need an ID to remove");
-			List_remove(conn, atoi(argv[3]));
+			if(argc < 3)
+				die("Need an ID to remove", conn);
+			List_remove(conn, atoi(argv[2]));
 			List_write(conn);
 			break;
 		case 'l':
 			List_listf(conn);
 			break;
 		case 'g':
-			if(argc < 4)
-				die("Need an ID to get");
-			List_get(conn, atoi(argv[3]));
+			if(argc < 3)
+				die("Need an ID to get", conn);
+			List_get(conn, atoi(argv[2]));
 		case 'p':
 			for(i = MAX_TASKS -1; i>=0; i--)
 				if(conn->ls->tasks[i].set)
@@ -376,8 +448,11 @@ int main(int argc, char *argv[])
 					break;
 				}
 			break;
+		case 'h':
+			printf("h=help, n=new list, a=add, x=crossout or uncrossout, l-list, g=get, p=pop\n");
+			break;
 		default:
-			die("Invalid action, only: c=create, a=add, r=remove, l=list, g=get, p=pop");
+			die("Invalid action, only: h=help, n=new list, a=add, x=crossout or uncrossout, l=list, g=get, p=pop",conn);
 	}
 
 	List_close(conn);
