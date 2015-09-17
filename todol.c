@@ -102,7 +102,7 @@ struct Connection *List_open(const char *filename, char mode)
 	if(!conn->ls)
 		die("Memory error", conn);
 
-	if(mode == 'c') {
+	if(mode == 'n') {
 		conn->file = fopen(filename, "w");
 	} else {
 		conn->file = fopen(filename, "r+");
